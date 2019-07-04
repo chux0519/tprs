@@ -33,16 +33,16 @@ fn main() {
         .get_matches();
     match matches.subcommand() {
         ("set", Some(sub_m)) => {
-            let k = sub_m.value_of("KEY").unwrap();
-            let v = sub_m.value_of("VALUE").unwrap();
+            let _k = sub_m.value_of("KEY").unwrap();
+            let _v = sub_m.value_of("VALUE").unwrap();
             panic!("unimplemented");
         }
         ("get", Some(sub_m)) => {
-            let k = sub_m.value_of("KEY").unwrap();
+            let _k = sub_m.value_of("KEY").unwrap();
             panic!("unimplemented");
         }
         ("rm", Some(sub_m)) => {
-            let k = sub_m.value_of("KEY").unwrap();
+            let _k = sub_m.value_of("KEY").unwrap();
             panic!("unimplemented");
         }
         _ => unimplemented!(),
