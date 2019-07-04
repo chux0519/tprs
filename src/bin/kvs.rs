@@ -1,50 +1,47 @@
-extern crate clap;
-use clap::{App, Arg, SubCommand};
+extern crate structopt;
+use structopt::StructOpt;
+
+#[derive(StructOpt)]
+enum Opts {
+    #[structopt(name = "set", about = "Set key value pair")]
+    Set(SetArgs),
+    #[structopt(name = "get", about = "Get value of given key")]
+    Get(GetArgs),
+    #[structopt(name = "rm", about = "Remove key")]
+    Remove(RemoveArgs),
+}
+
+#[derive(StructOpt)]
+struct SetArgs {
+    #[structopt(name = "KEY")]
+    key: String,
+    #[structopt(name = "VALUE")]
+    value: String,
+}
+
+#[derive(StructOpt)]
+struct GetArgs {
+    #[structopt(name = "KEY")]
+    key: String,
+}
+
+#[derive(StructOpt)]
+struct RemoveArgs {
+    #[structopt(name = "KEY")]
+    key: String,
+}
 
 fn main() {
-    let matches = App::new(env!("CARGO_PKG_NAME"))
-        .version(env!("CARGO_PKG_VERSION"))
-        .author(env!("CARGO_PKG_AUTHORS"))
-        .about(env!("CARGO_PKG_DESCRIPTION"))
-        .subcommand(
-            SubCommand::with_name("get").arg(
-                Arg::with_name("KEY")
-                    .required(true)
-                    .help("get value of key"),
-            ),
-        )
-        .subcommand(
-            SubCommand::with_name("set")
-                .arg(
-                    Arg::with_name("KEY")
-                        .required(true)
-                        .help("set value of key"),
-                )
-                .arg(
-                    Arg::with_name("VALUE")
-                        .required(true)
-                        .help("set value of key"),
-                ),
-        )
-        .subcommand(
-            SubCommand::with_name("rm")
-                .arg(Arg::with_name("KEY").required(true).help("delete key")),
-        )
-        .get_matches();
-    match matches.subcommand() {
-        ("set", Some(sub_m)) => {
-            let _k = sub_m.value_of("KEY").unwrap();
-            let _v = sub_m.value_of("VALUE").unwrap();
-            panic!("unimplemented");
+    let opt = Opts::from_args();
+    match opt {
+        Opts::Set(_x) => {
+            panic!("unimplemented!");
         }
-        ("get", Some(sub_m)) => {
-            let _k = sub_m.value_of("KEY").unwrap();
-            panic!("unimplemented");
+        Opts::Get(_x) => {
+            panic!("unimplemented!");
         }
-        ("rm", Some(sub_m)) => {
-            let _k = sub_m.value_of("KEY").unwrap();
-            panic!("unimplemented");
+        Opts::Remove(_x) => {
+            panic!("unimplemented!");
         }
-        _ => unimplemented!(),
     }
 }
