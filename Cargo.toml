@@ -9,6 +9,7 @@ edition = "2018"
 [dependencies]
 clap = "2.33.0"
 structopt = "0.2.18"
+failure = "0.1.5"
 
 
 
