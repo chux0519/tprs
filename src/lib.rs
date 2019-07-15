@@ -2,6 +2,8 @@
 //! kvs implement an in memory k-v store
 
 use failure::Error;
+#[macro_use]
+extern crate failure;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
@@ -49,13 +51,21 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 impl KvStore {
     /// constructor
-    pub fn open<P: AsRef<Path>>(path: P) -> Result<Self> {
-        let file = OpenOptions::new().create(true).append(true).open(&path)?;
-        let store = KvStore {
-            writer: BufWriter::new(file),
-            reader: BufReader::new(File::open(&path)?),
-        };
-        Ok(store)
+    pub fn open(path: &Path) -> Result<Self> {
+        let dir = Path::new(path);
+        if dir.is_dir() {
+            let db_path = dir.join("db.kv");
+            let file = OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&db_path)?;
+            let store = KvStore {
+                writer: BufWriter::new(file),
+                reader: BufReader::new(File::open(&db_path)?),
+            };
+            return Ok(store);
+        }
+        Err(format_err!("path is not a dir"))
     }
 
     /// Set a k-v pair
@@ -117,13 +127,13 @@ impl KvStore {
             let entries = entrypoints.get_mut(&k);
             match entries {
                 Some(entries_vec) => {
-                    entries_vec.push((next_pos, len));
+                    entries_vec.push((cur_pos, len));
                 }
                 None => {
-                    entrypoints.insert(k, vec![(next_pos, len)]);
+                    entrypoints.insert(k, vec![(cur_pos, len)]);
                 }
             }
-            cur_pos = next_pos + 1;
+            cur_pos = next_pos;
         }
         Ok(entrypoints)
     }
