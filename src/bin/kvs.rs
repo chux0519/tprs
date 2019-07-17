@@ -1,6 +1,9 @@
 extern crate structopt;
 use structopt::StructOpt;
 
+extern crate kvs;
+use kvs::KvStore;
+
 #[derive(StructOpt)]
 enum Opts {
     #[structopt(name = "set", about = "Set key value pair")]
@@ -33,15 +36,19 @@ struct RemoveArgs {
 
 fn main() {
     let opt = Opts::from_args();
+    let mut kv = KvStore::open(std::path::Path::new(".")).expect("open db error");
     match opt {
-        Opts::Set(_x) => {
-            panic!("unimplemented!");
+        Opts::Set(cmd) => {
+            kv.set(cmd.key, cmd.value).expect("set error");
         }
-        Opts::Get(_x) => {
-            panic!("unimplemented!");
+        Opts::Get(cmd) => {
+            let val = kv.get(cmd.key).expect("get error");
+            if let Some(v) = val {
+                println!("{}", v);
+            }
         }
-        Opts::Remove(_x) => {
-            panic!("unimplemented!");
+        Opts::Remove(cmd) => {
+            kv.remove(cmd.key).expect("remove error");
         }
     }
 }
