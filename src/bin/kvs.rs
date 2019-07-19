@@ -1,6 +1,8 @@
 extern crate structopt;
 use structopt::StructOpt;
 
+use std::process;
+
 extern crate kvs;
 use kvs::KvStore;
 
@@ -38,17 +40,31 @@ fn main() {
     let opt = Opts::from_args();
     let mut kv = KvStore::open(std::path::Path::new(".")).expect("open db error");
     match opt {
-        Opts::Set(cmd) => {
-            kv.set(cmd.key, cmd.value).expect("set error");
-        }
-        Opts::Get(cmd) => {
-            let val = kv.get(cmd.key).expect("get error");
-            if let Some(v) = val {
-                println!("{}", v);
+        Opts::Set(cmd) => match kv.set(cmd.key, cmd.value) {
+            Err(e) => {
+                println!("{}", e);
+                process::exit(1);
             }
-        }
-        Opts::Remove(cmd) => {
-            kv.remove(cmd.key).expect("remove error");
-        }
+            _ => {}
+        },
+        Opts::Get(cmd) => match kv.get(cmd.key) {
+            Ok(res) => match res {
+                Some(v) => {
+                    println!("{}", v);
+                }
+                None => println!("Key not found"),
+            },
+            Err(e) => {
+                println!("{}", e);
+                process::exit(1);
+            }
+        },
+        Opts::Remove(cmd) => match kv.remove(cmd.key) {
+            Err(e) => {
+                println!("{}", e);
+                process::exit(1);
+            }
+            _ => {}
+        },
     }
 }

@@ -1,7 +1,6 @@
 #![deny(missing_docs)]
 //! kvs implement an in memory k-v store
 
-use failure::Error;
 #[macro_use]
 extern crate failure;
 use serde::{Deserialize, Serialize};
@@ -10,6 +9,9 @@ use std::fs::{File, OpenOptions};
 use std::io::prelude::*;
 use std::io::{BufReader, BufWriter, SeekFrom};
 use std::path::Path;
+
+mod error;
+use error::KvStoreError;
 
 #[derive(Serialize, Deserialize)]
 enum Commands {
@@ -47,7 +49,7 @@ pub struct KvStore {
 }
 
 /// Short for Result<T, Box<std::error::Error>>
-pub type Result<T> = std::result::Result<T, Error>;
+pub type Result<T> = std::result::Result<T, KvStoreError>;
 
 impl KvStore {
     /// constructor
@@ -65,7 +67,7 @@ impl KvStore {
             };
             return Ok(store);
         }
-        Err(format_err!("path is not a dir"))
+        Err(KvStoreError::PathInvalid)
     }
 
     /// Set a k-v pair
@@ -105,8 +107,7 @@ impl KvStore {
                 self.writer.flush()?;
                 Ok(())
             }
-            // TODO: throw key not found
-            None => Ok(()),
+            None => Err(KvStoreError::KeyNotFound),
         }
     }
 
