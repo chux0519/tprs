@@ -1,4 +1,5 @@
 #![deny(missing_docs)]
+#![feature(seek_convenience)]
 //! kvs implement an in memory k-v store
 
 #[macro_use]
@@ -36,7 +37,7 @@ struct RemoveCommand {
 /// Example:
 /// ```rust
 /// # use kvs::KvStore;
-/// let mut store = KvStore::new();
+/// let mut store = KvStore::open(std::path::Path::new("."));
 /// store.set("k".to_owned(), "v".to_owned());
 /// let v = store.get("k".to_owned());
 /// assert_eq!(Some("v".to_owned()), v);
@@ -46,10 +47,38 @@ struct RemoveCommand {
 pub struct KvStore {
     writer: BufWriter<File>,
     reader: BufReader<File>,
+    entrypoints: HashMap<String, Vec<(u64, u64)>>,
 }
 
 /// Short for Result<T, Box<std::error::Error>>
 pub type Result<T> = std::result::Result<T, KvStoreError>;
+
+fn build_entrypoints(path: &Path) -> Result<HashMap<String, Vec<(u64, u64)>>> {
+    let mut entrypoints: HashMap<String, Vec<(u64, u64)>> = HashMap::new();
+    let mut cur_pos = 0;
+    let mut reader = BufReader::new(File::open(&path)?);
+    reader.seek(SeekFrom::Start(0))?;
+    let mut stream = serde_json::Deserializer::from_reader(&mut reader).into_iter::<Commands>();
+    while let Some(cmd) = stream.next() {
+        let next_pos = stream.byte_offset() as u64;
+        let len = next_pos - cur_pos;
+        let k = match cmd? {
+            Commands::Set(set_cmd) => set_cmd.key,
+            Commands::Remove(rm_cmd) => rm_cmd.key,
+        };
+        let entries = entrypoints.get_mut(&k);
+        match entries {
+            Some(entries_vec) => {
+                entries_vec.push((cur_pos, len));
+            }
+            None => {
+                entrypoints.insert(k, vec![(cur_pos, len)]);
+            }
+        }
+        cur_pos = next_pos;
+    }
+    Ok(entrypoints)
+}
 
 impl KvStore {
     /// constructor
@@ -64,6 +93,7 @@ impl KvStore {
             let store = KvStore {
                 writer: BufWriter::new(file),
                 reader: BufReader::new(File::open(&db_path)?),
+                entrypoints: build_entrypoints(&db_path)?,
             };
             return Ok(store);
         }
@@ -72,18 +102,31 @@ impl KvStore {
 
     /// Set a k-v pair
     pub fn set(&mut self, key: String, value: String) -> Result<()> {
-        let cmd = Commands::Set(SetCommand { key, value });
+        let cmd = Commands::Set(SetCommand {
+            key: key.clone(),
+            value,
+        });
+        let pos = self.writer.seek(SeekFrom::End(0))?;
         self.writer
             .write_all(&serde_json::to_string(&cmd)?.into_bytes())?;
         self.writer.flush()?;
+        let next_pos = self.writer.stream_position()?;
+        let pos_len_pair = (pos, next_pos - pos);
+        match self.entrypoints.get_mut(&key) {
+            Some(entries_vec) => {
+                entries_vec.push(pos_len_pair);
+            }
+            None => {
+                self.entrypoints.insert(key.clone(), vec![pos_len_pair]);
+            }
+        }
         Ok(())
     }
 
     /// Get value of key
     /// Returns None if key is not exists
     pub fn get(&mut self, key: String) -> Result<Option<String>> {
-        let entrypoints = self.get_entrypoints()?;
-        match entrypoints.get(&key) {
+        match self.entrypoints.get(&key) {
             Some(v) => {
                 let (pos, len) = v[v.len() - 1];
                 let cmd = self.read_cmd(pos, len)?;
@@ -98,50 +141,22 @@ impl KvStore {
 
     /// Remove a key
     pub fn remove(&mut self, key: String) -> Result<()> {
-        let entrypoints = self.get_entrypoints()?;
-        match entrypoints.get(&key) {
+        match self.entrypoints.get(&key) {
             Some(_) => {
-                let cmd = Commands::Remove(RemoveCommand { key });
+                let cmd = Commands::Remove(RemoveCommand { key: key.clone() });
                 self.writer
                     .write_all(&serde_json::to_string(&cmd)?.into_bytes())?;
                 self.writer.flush()?;
+                self.entrypoints.remove(&key).expect("KeyNotFound");
                 Ok(())
             }
             None => Err(KvStoreError::KeyNotFound),
         }
     }
 
-    fn get_entrypoints(&mut self) -> Result<HashMap<String, Vec<(usize, usize)>>> {
-        let mut entrypoints: HashMap<String, Vec<(usize, usize)>> = HashMap::new();
-        let mut cur_pos = 0;
-        let mut next_pos = 0;
-        self.reader.seek(SeekFrom::Start(0))?;
-        let mut stream =
-            serde_json::Deserializer::from_reader(&mut self.reader).into_iter::<Commands>();
-        while let Some(cmd) = stream.next() {
-            next_pos = stream.byte_offset();
-            let len = next_pos - cur_pos;
-            let k = match cmd? {
-                Commands::Set(set_cmd) => set_cmd.key,
-                Commands::Remove(rm_cmd) => rm_cmd.key,
-            };
-            let entries = entrypoints.get_mut(&k);
-            match entries {
-                Some(entries_vec) => {
-                    entries_vec.push((cur_pos, len));
-                }
-                None => {
-                    entrypoints.insert(k, vec![(cur_pos, len)]);
-                }
-            }
-            cur_pos = next_pos;
-        }
-        Ok(entrypoints)
-    }
-
-    fn read_cmd(&mut self, pos: usize, len: usize) -> Result<Commands> {
-        self.reader.seek(SeekFrom::Start(pos as u64))?;
-        let mut buf = vec![0; len];
+    fn read_cmd(&mut self, pos: u64, len: u64) -> Result<Commands> {
+        self.reader.seek(SeekFrom::Start(pos))?;
+        let mut buf = vec![0; len as usize];
         self.reader.read_exact(&mut buf)?;
         let cmd = serde_json::from_slice(&buf)?;
         Ok(cmd)
