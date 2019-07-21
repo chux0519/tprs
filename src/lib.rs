@@ -47,14 +47,14 @@ struct RemoveCommand {
 pub struct KvStore {
     writer: BufWriter<File>,
     reader: BufReader<File>,
-    entrypoints: HashMap<String, Vec<(u64, u64)>>,
+    entrypoints: HashMap<String, (u64, u64)>,
 }
 
 /// Short for Result<T, Box<std::error::Error>>
 pub type Result<T> = std::result::Result<T, KvStoreError>;
 
-fn build_entrypoints(path: &Path) -> Result<HashMap<String, Vec<(u64, u64)>>> {
-    let mut entrypoints: HashMap<String, Vec<(u64, u64)>> = HashMap::new();
+fn build_entrypoints(path: &Path) -> Result<HashMap<String, (u64, u64)>> {
+    let mut entrypoints: HashMap<String, (u64, u64)> = HashMap::new();
     let mut cur_pos = 0;
     let mut reader = BufReader::new(File::open(&path)?);
     reader.seek(SeekFrom::Start(0))?;
@@ -66,15 +66,7 @@ fn build_entrypoints(path: &Path) -> Result<HashMap<String, Vec<(u64, u64)>>> {
             Commands::Set(set_cmd) => set_cmd.key,
             Commands::Remove(rm_cmd) => rm_cmd.key,
         };
-        let entries = entrypoints.get_mut(&k);
-        match entries {
-            Some(entries_vec) => {
-                entries_vec.push((cur_pos, len));
-            }
-            None => {
-                entrypoints.insert(k, vec![(cur_pos, len)]);
-            }
-        }
+        entrypoints.insert(k, (cur_pos, len));
         cur_pos = next_pos;
     }
     Ok(entrypoints)
@@ -112,27 +104,20 @@ impl KvStore {
         self.writer.flush()?;
         let next_pos = self.writer.stream_position()?;
         let pos_len_pair = (pos, next_pos - pos);
-        match self.entrypoints.get_mut(&key) {
-            Some(entries_vec) => {
-                entries_vec.push(pos_len_pair);
-            }
-            None => {
-                self.entrypoints.insert(key.clone(), vec![pos_len_pair]);
-            }
-        }
+        self.entrypoints.insert(key.clone(), pos_len_pair);
         Ok(())
     }
 
     /// Get value of key
     /// Returns None if key is not exists
     pub fn get(&mut self, key: String) -> Result<Option<String>> {
-        match self.entrypoints.get(&key) {
-            Some(v) => {
-                let (pos, len) = v[v.len() - 1];
-                let cmd = self.read_cmd(pos, len)?;
-                match cmd {
+        let entry = self.entrypoints.get(&key);
+        match entry {
+            Some(pos_len_pair) => {
+                let (pos, len) = *pos_len_pair;
+                match self.read_cmd(pos, len)? {
+                    Commands::Set(cmd) => Ok(Some(cmd.value)),
                     Commands::Remove(_) => Ok(None),
-                    Commands::Set(set_cmd) => Ok(Some(set_cmd.value)),
                 }
             }
             None => Ok(None),
@@ -147,7 +132,7 @@ impl KvStore {
                 self.writer
                     .write_all(&serde_json::to_string(&cmd)?.into_bytes())?;
                 self.writer.flush()?;
-                self.entrypoints.remove(&key).expect("KeyNotFound");
+                self.entrypoints.remove(&key);
                 Ok(())
             }
             None => Err(KvStoreError::KeyNotFound),
