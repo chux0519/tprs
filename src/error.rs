@@ -23,3 +23,5 @@ impl From<serde_json::Error> for KvStoreError {
         KvStoreError::Serde(error)
     }
 }
+
+pub type Result<T> = std::result::Result<T, KvStoreError>;
