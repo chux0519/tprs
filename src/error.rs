@@ -2,10 +2,12 @@ use std::io;
 
 #[derive(Fail, Debug)]
 pub enum KvStoreError {
-    #[fail(display = "path is not a directory")]
+    #[fail(display = "Path is not a directory")]
     PathInvalid,
     #[fail(display = "Key not found")]
     KeyNotFound,
+    #[fail(display = "Engine not match")]
+    EngineNotMatch,
     #[fail(display = "{}", _0)]
     Io(#[cause] io::Error),
     #[fail(display = "{}", _0)]

@@ -1,13 +1,17 @@
 #[macro_use]
 extern crate clap;
-extern crate structopt;
+#[macro_use]
+extern crate log;
+extern crate env_logger;
+use std::env;
+use std::fs;
+use std::net::SocketAddr;
 use structopt::StructOpt;
 
-use std::net::SocketAddr;
-
 extern crate kvs;
+use kvs::{KvStoreError, Result};
 
-#[derive(StructOpt)]
+#[derive(StructOpt, Debug)]
 struct Opts {
     #[structopt(
         long,
@@ -28,12 +32,49 @@ struct Opts {
 
 arg_enum! {
     #[allow(non_camel_case_types)]
-    #[derive(PartialEq, Debug)]
+    #[derive(Copy, Clone, PartialEq, Debug)]
     pub enum Engine {
         sled,
         kvs
     }
 }
-fn main() {
+fn main() -> Result<()> {
+    env_logger::init();
     let opt = Opts::from_args();
+    let engine = check_engine(&opt.engine)?;
+    error!(
+        "{} version: {}",
+        env!("CARGO_PKG_NAME"),
+        env!("CARGO_PKG_VERSION")
+    );
+    error!("Configuration: --addr {} --engine {}", opt.addr, engine);
+    Ok(())
+}
+
+fn check_engine(e: &Option<Engine>) -> Result<Engine> {
+    let _engine = match e {
+        None => Engine::kvs,
+        Some(ng) => ng.clone(),
+    };
+    let cur_dir = env::current_dir()?;
+    let engine_file = cur_dir.join("engine");
+    match fs::File::open(&engine_file) {
+        Err(e) => match e.kind() {
+            // If no engine file, write the engine into a new engine file
+            std::io::ErrorKind::NotFound => {
+                fs::write(&engine_file, format!("{}", _engine))?;
+                return Ok(_engine);
+            }
+            _ => return Err(e.into()),
+        },
+        Ok(_) => {
+            let last_engine = fs::read_to_string(&engine_file)?
+                .parse()
+                .expect("Can not parse engine from engine file");
+            if last_engine != _engine {
+                return Err(KvStoreError::EngineNotMatch);
+            }
+            return Ok(last_engine);
+        }
+    }
 }

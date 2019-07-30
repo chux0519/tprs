@@ -8,8 +8,8 @@ extern crate failure;
 mod error;
 mod kvs;
 
+pub use crate::kvs::KvStore;
 pub use error::{KvStoreError, Result};
-pub use kvs::KvStore;
 
 pub trait KvsEngine {
     fn set(&mut self, key: String, value: String) -> Result<()>;
