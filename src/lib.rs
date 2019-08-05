@@ -7,6 +7,7 @@ extern crate failure;
 
 mod error;
 mod kvs;
+mod network;
 
 pub use crate::kvs::KvStore;
 pub use error::{KvStoreError, Result};

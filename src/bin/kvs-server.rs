@@ -5,7 +5,7 @@ extern crate log;
 extern crate env_logger;
 use std::env;
 use std::fs;
-use std::net::SocketAddr;
+use std::net::{SocketAddr, TcpListener, TcpStream};
 use structopt::StructOpt;
 
 extern crate kvs;
@@ -48,6 +48,15 @@ fn main() -> Result<()> {
         env!("CARGO_PKG_VERSION")
     );
     error!("Configuration: --addr {} --engine {}", opt.addr, engine);
+
+    let listener = TcpListener::bind(opt.addr)?;
+    for stream in listener.incoming() {
+        handle(stream?);
+    }
+    Ok(())
+}
+
+fn handle(stream: TcpStream) -> Result<()> {
     Ok(())
 }
 
