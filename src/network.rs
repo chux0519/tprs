@@ -1,7 +1,7 @@
 use crate::error::{KvStoreError, Result};
 use serde::{Deserialize, Serialize};
 use std::io::{Read, Write};
-use std::net::TcpStream;
+use std::net::{Shutdown, TcpStream};
 
 pub struct Session {
     // TODO: add store ref
@@ -20,17 +20,18 @@ pub enum SessionState {
 }
 
 // For client
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum SessionClientCommand {
     Handshake,
     Quit,
     Get(String),
     Set(String, String),
     Remove(String),
+    Invalid,
 }
 
 // For server
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum SessionServerResp {
     OK,
     ERR(String),
@@ -45,20 +46,39 @@ impl Session {
         }
     }
 
-    pub fn poll(&mut self) -> Result<SessionClientCommand> {
-        // TODO: read from sock
-        Ok(SessionClientCommand::Quit)
+    pub fn poll(&mut self) -> Result<()> {
+        let mut buf = vec![0u8; 1024];
+        let cmd = match self.sock.read(&mut buf) {
+            Ok(len) => {
+                // TODO: corner case: 0
+                let msg = &buf[..len];
+                let cmd: SessionClientCommand = serde_json::from_slice(&msg)?;
+                cmd
+            }
+            Err(e) => SessionClientCommand::Invalid,
+        };
+        dbg!(&cmd);
+        self.handle(cmd)
+    }
+
+    pub fn close(&mut self) -> Result<()> {
+        self.sock.shutdown(Shutdown::Both)?;
+        Ok(())
     }
 
     pub fn handle(&mut self, cmd: SessionClientCommand) -> Result<()> {
         match cmd {
             SessionClientCommand::Handshake => {
-                if self.state == SessionState::Wait {
-                    self.state = SessionState::Connect;
-                }
+                self.state = SessionState::Connect;
+                let resp = SessionServerResp::OK;
+                self.sock
+                    .write_all(serde_json::to_string(&resp)?.as_bytes())?
             }
             SessionClientCommand::Quit => {
                 self.state = SessionState::Done;
+                let resp = SessionServerResp::OK;
+                self.sock
+                    .write_all(serde_json::to_string(&resp)?.as_bytes())?
             }
             SessionClientCommand::Get(k) => {
                 let resp = SessionServerResp::Value(k);
@@ -75,6 +95,7 @@ impl Session {
                 self.sock
                     .write_all(&serde_json::to_string(&resp)?.into_bytes())?
             }
+            SessionClientCommand::Invalid => {}
         };
         Ok(())
     }

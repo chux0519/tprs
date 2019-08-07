@@ -9,6 +9,7 @@ use std::net::{SocketAddr, TcpListener, TcpStream};
 use structopt::StructOpt;
 
 extern crate kvs;
+use kvs::network::{Session, SessionServerResp, SessionState};
 use kvs::{KvStoreError, Result};
 
 #[derive(StructOpt, Debug)]
@@ -51,12 +52,25 @@ fn main() -> Result<()> {
 
     let listener = TcpListener::bind(opt.addr)?;
     for stream in listener.incoming() {
-        handle(stream?);
+        match stream {
+            Ok(stream) => {
+                handle(stream)?;
+            }
+            Err(e) => {
+                dbg!("connection failed");
+            }
+        }
     }
     Ok(())
 }
 
 fn handle(stream: TcpStream) -> Result<()> {
+    let mut session = Session::new(stream);
+    // TODO:
+    while !session.should_quit() {
+        session.poll()?;
+    }
+    dbg!("done");
     Ok(())
 }
 
