@@ -10,7 +10,7 @@ use structopt::StructOpt;
 
 extern crate kvs;
 use kvs::network::{Session, SessionServerResp, SessionState};
-use kvs::{KvStoreError, Result};
+use kvs::{KvStoreError, Result, KvStore, KvsEngine};
 
 #[derive(StructOpt, Debug)]
 struct Opts {
@@ -50,11 +50,12 @@ fn main() -> Result<()> {
     );
     error!("Configuration: --addr {} --engine {}", opt.addr, engine);
 
+    let mut store = KvStore::open(&env::current_dir()?)?;
     let listener = TcpListener::bind(opt.addr)?;
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
-                handle(stream)?;
+                handle(stream, &mut store)?;
             }
             Err(e) => {
                 dbg!("connection failed");
@@ -64,8 +65,8 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn handle(stream: TcpStream) -> Result<()> {
-    let mut session = Session::new(stream);
+fn handle<E: KvsEngine> (stream: TcpStream, store: &mut E) -> Result<()> {
+    let mut session = Session::new(stream, store);
     // TODO:
     while !session.should_quit() {
         session.poll()?;
