@@ -8,7 +8,7 @@ use std::process;
 extern crate kvs;
 
 use kvs::network::{SessionClientCommand, SessionServerResp};
-use kvs::Result;
+use kvs::{KvStoreError, Result};
 
 #[derive(StructOpt, Debug)]
 enum Opts {
@@ -95,6 +95,23 @@ fn main() -> Result<()> {
     dbg!("read", &len);
     let resp: SessionServerResp = serde_json::from_slice(&buf[..len])?;
     dbg!(&resp);
+
     stream.write_all(&serde_json::to_string(&quit)?.as_bytes())?;
+    match resp {
+        SessionServerResp::Value(v) => {
+            println!("{}", v);
+        }
+        SessionServerResp::NotFound => {
+            println!("Key not found");
+        }
+        SessionServerResp::ERR(e) => {
+            eprintln!("{}", e);
+            return Err(KvStoreError::from(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                e,
+            )));
+        }
+        _ => {}
+    }
     Ok(())
 }

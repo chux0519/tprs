@@ -51,12 +51,15 @@ fn main() -> Result<()> {
     );
     error!("Configuration: --addr {} --engine {}", opt.addr, engine);
 
-    let listener = TcpListener::bind(opt.addr)?;
     if engine == Engine::kvs {
         let store = KvStore::open(&env::current_dir()?)?;
+        let listener = TcpListener::bind(opt.addr)?;
+
         serve(listener, store)?;
     } else if engine == Engine::sled {
         let store = SledKvsEngine::open(&env::current_dir()?)?;
+        let listener = TcpListener::bind(opt.addr)?;
+
         serve(listener, store)?;
     }
     Ok(())
