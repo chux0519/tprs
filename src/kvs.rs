@@ -32,6 +32,7 @@ struct RemoveCommand {
 /// Example:
 /// ```rust
 /// # use kvs::KvStore;
+/// # use kvs::KvsEngine;
 /// let mut store = KvStore::open(std::path::Path::new(".")).unwrap();
 /// store.set("k".to_owned(), "v".to_owned()).expect("set error");
 /// let v = store.get("k".to_owned()).expect("get error");
