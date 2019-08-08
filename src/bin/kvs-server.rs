@@ -10,7 +10,7 @@ use structopt::StructOpt;
 
 extern crate kvs;
 use kvs::network::{Session, SessionServerResp, SessionState};
-use kvs::{KvStoreError, Result, KvStore, KvsEngine};
+use kvs::{KvStore, KvStoreError, KvsEngine, Result, SledKvsEngine};
 
 #[derive(StructOpt, Debug)]
 struct Opts {
@@ -39,6 +39,7 @@ arg_enum! {
         kvs
     }
 }
+
 fn main() -> Result<()> {
     env_logger::init();
     let opt = Opts::from_args();
@@ -50,8 +51,19 @@ fn main() -> Result<()> {
     );
     error!("Configuration: --addr {} --engine {}", opt.addr, engine);
 
-    let mut store = KvStore::open(&env::current_dir()?)?;
     let listener = TcpListener::bind(opt.addr)?;
+    if engine == Engine::kvs {
+        let store = KvStore::open(&env::current_dir()?)?;
+        serve(listener, store)?;
+    } else if engine == Engine::sled {
+        let store = SledKvsEngine::open(&env::current_dir()?)?;
+        serve(listener, store)?;
+    }
+    Ok(())
+}
+
+fn serve<E: KvsEngine>(listener: TcpListener, store: E) -> Result<()> {
+    let mut store = store;
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
@@ -65,9 +77,8 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn handle<E: KvsEngine> (stream: TcpStream, store: &mut E) -> Result<()> {
+fn handle<E: KvsEngine>(stream: TcpStream, store: &mut E) -> Result<()> {
     let mut session = Session::new(stream, store);
-    // TODO:
     while !session.should_quit() {
         session.poll()?;
     }
