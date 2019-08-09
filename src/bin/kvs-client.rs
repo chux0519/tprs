@@ -66,7 +66,6 @@ struct RemoveArgs {
 
 fn main() -> Result<()> {
     let opt = Opts::from_args();
-    dbg!(&opt);
     let (addr, cmd) = match opt {
         Opts::Set(set_args) => (
             set_args.addr,
@@ -80,21 +79,16 @@ fn main() -> Result<()> {
     };
     let mut buf = vec![0u8; 1024];
 
-    dbg!(&addr, &cmd);
     let mut stream = TcpStream::connect(addr)?;
     let handshake = SessionClientCommand::Handshake;
 
     let quit = SessionClientCommand::Quit;
     stream.write_all(&serde_json::to_string(&handshake)?.as_bytes())?;
-    dbg!("handshake");
     stream.read(&mut buf)?;
 
     stream.write_all(&serde_json::to_string(&cmd)?.as_bytes())?;
-    dbg!("sent cmd");
     let len = stream.read(&mut buf)?;
-    dbg!("read", &len);
     let resp: SessionServerResp = serde_json::from_slice(&buf[..len])?;
-    dbg!(&resp);
 
     stream.write_all(&serde_json::to_string(&quit)?.as_bytes())?;
     match resp {

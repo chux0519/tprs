@@ -5,11 +5,12 @@ extern crate log;
 extern crate env_logger;
 use std::env;
 use std::fs;
+use std::io;
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use structopt::StructOpt;
 
 extern crate kvs;
-use kvs::network::{Session, SessionServerResp, SessionState};
+use kvs::network::Session;
 use kvs::{KvStore, KvStoreError, KvsEngine, Result, SledKvsEngine};
 
 #[derive(StructOpt, Debug)]
@@ -73,7 +74,10 @@ fn serve<E: KvsEngine>(listener: TcpListener, store: E) -> Result<()> {
                 handle(stream, &mut store)?;
             }
             Err(e) => {
-                dbg!("connection failed");
+                return Err(KvStoreError::Io(io::Error::new(
+                    io::ErrorKind::Other,
+                    format!("{}", e),
+                )));
             }
         }
     }
@@ -85,7 +89,6 @@ fn handle<E: KvsEngine>(stream: TcpStream, store: &mut E) -> Result<()> {
     while !session.should_quit() {
         session.poll()?;
     }
-    dbg!("done");
     Ok(())
 }
 

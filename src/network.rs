@@ -61,7 +61,6 @@ impl<'a, E: KvsEngine> Session<'a, E> {
             }
             Err(e) => SessionClientCommand::Invalid,
         };
-        dbg!(&cmd);
         self.handle(cmd)
     }
 

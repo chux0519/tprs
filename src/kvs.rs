@@ -220,7 +220,6 @@ impl KvsEngine for KvStore {
 
         self.meta.uncompact_size += next_pos - pos;
         if self.meta.uncompact_size > COMPACTION_POINT {
-            dbg!(&self.meta.uncompact_size);
             self.comapct()?;
         }
 
