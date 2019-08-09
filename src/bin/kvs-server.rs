@@ -5,13 +5,12 @@ extern crate log;
 extern crate env_logger;
 use std::env;
 use std::fs;
-use std::io;
-use std::net::{SocketAddr, TcpListener, TcpStream};
+use std::net::{SocketAddr, TcpListener};
 use structopt::StructOpt;
 
 extern crate kvs;
-use kvs::network::Session;
-use kvs::{KvStore, KvStoreError, KvsEngine, Result, SledKvsEngine};
+use kvs::network::serve;
+use kvs::{KvStore, KvStoreError, Result, SledKvsEngine};
 
 #[derive(StructOpt, Debug)]
 struct Opts {
@@ -62,32 +61,6 @@ fn main() -> Result<()> {
         let listener = TcpListener::bind(opt.addr)?;
 
         serve(listener, store)?;
-    }
-    Ok(())
-}
-
-fn serve<E: KvsEngine>(listener: TcpListener, store: E) -> Result<()> {
-    let mut store = store;
-    for stream in listener.incoming() {
-        match stream {
-            Ok(stream) => {
-                handle(stream, &mut store)?;
-            }
-            Err(e) => {
-                return Err(KvStoreError::Io(io::Error::new(
-                    io::ErrorKind::Other,
-                    format!("{}", e),
-                )));
-            }
-        }
-    }
-    Ok(())
-}
-
-fn handle<E: KvsEngine>(stream: TcpStream, store: &mut E) -> Result<()> {
-    let mut session = Session::new(stream, store);
-    while !session.should_quit() {
-        session.poll()?;
     }
     Ok(())
 }

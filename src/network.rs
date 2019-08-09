@@ -1,8 +1,8 @@
 use crate::error::{KvStoreError, Result};
 use crate::KvsEngine;
 use serde::{Deserialize, Serialize};
-use std::io::{Read, Write};
-use std::net::{Shutdown, TcpStream};
+use std::io::{self, Read, Write};
+use std::net::{Shutdown, TcpListener, TcpStream};
 
 pub struct Session<'a, E: KvsEngine> {
     store: &'a mut E,
@@ -122,4 +122,30 @@ impl<'a, E: KvsEngine> Session<'a, E> {
     pub fn should_quit(&self) -> bool {
         self.state == SessionState::Done
     }
+}
+
+pub fn serve<E: KvsEngine>(listener: TcpListener, store: E) -> Result<()> {
+    let mut store = store;
+    for stream in listener.incoming() {
+        match stream {
+            Ok(stream) => {
+                handle(stream, &mut store)?;
+            }
+            Err(e) => {
+                return Err(KvStoreError::Io(io::Error::new(
+                    io::ErrorKind::Other,
+                    format!("{}", e),
+                )));
+            }
+        }
+    }
+    Ok(())
+}
+
+pub fn handle<E: KvsEngine>(stream: TcpStream, store: &mut E) -> Result<()> {
+    let mut session = Session::new(stream, store);
+    while !session.should_quit() {
+        session.poll()?;
+    }
+    Ok(())
 }
