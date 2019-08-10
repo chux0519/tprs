@@ -99,9 +99,53 @@ fn sled_write_benchmark(c: &mut Criterion) {
     });
 }
 
-criterion_group!{
+fn kvs_read_benchmark(c: &mut Criterion) {
+    let test_kvs = load_kvs();
+    let temp_dir = TempDir::new().unwrap();
+    {
+        let mut store = KvStore::open(&temp_dir.path()).unwrap();
+        for (k, v) in &test_kvs {
+            store.set(k.clone(), v.clone()).unwrap();
+        }
+    }
+    c.bench_function("kvs read", move |b| {
+        b.iter_batched(
+            || KvStore::open(&temp_dir.path()).unwrap(),
+            |mut store| {
+                for (k, v) in &test_kvs {
+                    store.get(k.clone()).unwrap();
+                }
+            },
+            BatchSize::SmallInput,
+        )
+    });
+}
+
+fn sled_read_benchmark(c: &mut Criterion) {
+    let test_kvs = load_kvs();
+    let temp_dir = TempDir::new().unwrap();
+    c.bench_function("kvs read", move |b| {
+        b.iter_batched(
+            || {
+                let mut store = SledKvsEngine::open(&temp_dir.path()).unwrap();
+                for (k, v) in &test_kvs {
+                    store.set(k.clone(), v.clone()).unwrap();
+                }
+                store
+            },
+            |mut store| {
+                for (k, v) in &test_kvs {
+                    store.get(k.clone()).unwrap();
+                }
+            },
+            BatchSize::SmallInput,
+        )
+    });
+}
+
+criterion_group! {
     name = benches;
     config = Criterion::default().sample_size(10);
-    targets = kvs_write_benchmark, sled_write_benchmark
+    targets = kvs_write_benchmark, sled_write_benchmark, kvs_read_benchmark, sled_read_benchmark
 }
 criterion_main!(benches);
