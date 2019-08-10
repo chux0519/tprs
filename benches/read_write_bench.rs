@@ -70,7 +70,7 @@ fn kvs_write_benchmark(c: &mut Criterion) {
                     store.set(k.clone(), v.clone()).unwrap();
                 }
             },
-            BatchSize::LargeInput,
+            BatchSize::SmallInput,
         )
     });
 }
@@ -112,8 +112,11 @@ fn kvs_read_benchmark(c: &mut Criterion) {
         b.iter_batched(
             || KvStore::open(&temp_dir.path()).unwrap(),
             |mut store| {
-                for (k, v) in &test_kvs {
-                    store.get(k.clone()).unwrap();
+                for x in 0..10 {
+                    // 10 * 100 = 1000
+                    for (k, v) in &test_kvs {
+                        store.get(k.clone()).unwrap();
+                    }
                 }
             },
             BatchSize::SmallInput,
@@ -124,7 +127,7 @@ fn kvs_read_benchmark(c: &mut Criterion) {
 fn sled_read_benchmark(c: &mut Criterion) {
     let test_kvs = load_kvs();
     let temp_dir = TempDir::new().unwrap();
-    c.bench_function("kvs read", move |b| {
+    c.bench_function("sled read", move |b| {
         b.iter_batched(
             || {
                 let mut store = SledKvsEngine::open(&temp_dir.path()).unwrap();
@@ -134,8 +137,10 @@ fn sled_read_benchmark(c: &mut Criterion) {
                 store
             },
             |mut store| {
-                for (k, v) in &test_kvs {
-                    store.get(k.clone()).unwrap();
+                for _ in 0..10 {
+                    for (k, v) in &test_kvs {
+                        store.get(k.clone()).unwrap();
+                    }
                 }
             },
             BatchSize::SmallInput,
