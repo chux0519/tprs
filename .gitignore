@@ -4,3 +4,4 @@ Cargo.lock
 engine
 *.log
 *.meta
+*.kvs
