@@ -59,7 +59,7 @@ impl<'a, E: KvsEngine> Session<'a, E> {
                 let cmd: SessionClientCommand = serde_json::from_slice(&msg)?;
                 cmd
             }
-            Err(e) => SessionClientCommand::Invalid,
+            Err(_e) => SessionClientCommand::Invalid,
         };
         self.handle(cmd)
     }

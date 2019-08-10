@@ -2,8 +2,7 @@ extern crate structopt;
 use structopt::StructOpt;
 
 use std::io::{Read, Write};
-use std::net::{Shutdown, SocketAddr, TcpStream};
-use std::process;
+use std::net::{SocketAddr, TcpStream};
 
 extern crate kvs;
 
