@@ -144,7 +144,7 @@ impl KvStore {
         Err(KvStoreError::PathInvalid)
     }
 
-    fn comapct(&mut self) -> Result<()> {
+    fn compact(&mut self) -> Result<()> {
         let mut vals = vec![];
         for pos_len_pair in self.entrypoints.values() {
             vals.push(pos_len_pair.clone());
@@ -158,6 +158,7 @@ impl KvStore {
             .open(&new_log_path)?;
         let mut new_writer = BufWriter::new(new_log);
         let mut new_entrypoints = HashMap::new();
+
         for pos_len_pair in vals {
             let (pos, len) = pos_len_pair;
             let cmd = self.read_cmd(pos, len)?;
@@ -191,6 +192,7 @@ impl KvStore {
 
         // delete old log
         fs::remove_file(&old_log_path)?;
+
         Ok(())
     }
 
@@ -220,7 +222,7 @@ impl KvsEngine for KvStore {
 
         self.meta.uncompact_size += next_pos - pos;
         if self.meta.uncompact_size > COMPACTION_POINT {
-            self.comapct()?;
+            self.compact()?;
         }
 
         Ok(())
