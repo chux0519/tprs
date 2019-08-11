@@ -9,7 +9,7 @@ mod error;
 mod kvs;
 pub mod network;
 mod sled;
-mod threadpool;
+pub mod thread_pool;
 
 pub use crate::error::{KvStoreError, Result};
 pub use crate::kvs::KvStore;
