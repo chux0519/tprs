@@ -1,13 +1,12 @@
 extern crate structopt;
 use structopt::StructOpt;
 
-use std::io::{Read, Write};
-use std::net::{SocketAddr, TcpStream};
+use std::net::SocketAddr;
 
 extern crate kvs;
 
-use kvs::network::{SessionClientCommand, SessionServerResp};
-use kvs::{KvStoreError, Result};
+use kvs::network::KvsClient;
+use kvs::Result;
 
 #[derive(StructOpt, Debug)]
 enum Opts {
@@ -65,46 +64,29 @@ struct RemoveArgs {
 
 fn main() -> Result<()> {
     let opt = Opts::from_args();
-    let (addr, cmd) = match opt {
-        Opts::Set(set_args) => (
-            set_args.addr,
-            SessionClientCommand::Set(set_args.key, set_args.value),
-        ),
-        Opts::Get(get_args) => (get_args.addr, SessionClientCommand::Get(get_args.key)),
-        Opts::Remove(remove_args) => (
-            remove_args.addr,
-            SessionClientCommand::Remove(remove_args.key),
-        ),
+    match opt {
+        Opts::Set(set_args) => {
+            let mut client = KvsClient::new(set_args.addr)?;
+            client.handshake()?;
+            client.set(set_args.key, set_args.value)?;
+            client.quit()?;
+        }
+        Opts::Get(get_args) => {
+            let mut client = KvsClient::new(get_args.addr)?;
+            client.handshake()?;
+            let resp = client.get(get_args.key)?;
+            match resp {
+                Some(v) => println!("{}", v),
+                None => println!("Key not found"),
+            }
+            client.quit()?;
+        }
+        Opts::Remove(remove_args) => {
+            let mut client = KvsClient::new(remove_args.addr)?;
+            client.handshake()?;
+            client.remove(remove_args.key)?;
+            client.quit()?;
+        }
     };
-    let mut buf = vec![0u8; 1024];
-
-    let mut stream = TcpStream::connect(addr)?;
-    let handshake = SessionClientCommand::Handshake;
-
-    let quit = SessionClientCommand::Quit;
-    stream.write_all(&serde_json::to_string(&handshake)?.as_bytes())?;
-    stream.read(&mut buf)?;
-
-    stream.write_all(&serde_json::to_string(&cmd)?.as_bytes())?;
-    let len = stream.read(&mut buf)?;
-    let resp: SessionServerResp = serde_json::from_slice(&buf[..len])?;
-
-    stream.write_all(&serde_json::to_string(&quit)?.as_bytes())?;
-    match resp {
-        SessionServerResp::Value(v) => {
-            println!("{}", v);
-        }
-        SessionServerResp::NotFound => {
-            println!("Key not found");
-        }
-        SessionServerResp::ERR(e) => {
-            eprintln!("{}", e);
-            return Err(KvStoreError::from(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                e,
-            )));
-        }
-        _ => {}
-    }
     Ok(())
 }

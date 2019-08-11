@@ -15,6 +15,8 @@ pub enum KvStoreError {
     Serde(#[cause] serde_json::Error),
     #[fail(display = "{}", _0)]
     Sled(#[cause] sled::Error),
+    #[fail(display = "{}", _0)]
+    Rpc(String)
 }
 
 impl From<io::Error> for KvStoreError {
