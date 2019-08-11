@@ -4,6 +4,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::prelude::*;
 use std::io::{self, BufReader, BufWriter, SeekFrom};
 use std::path::Path;
+use std::sync::{Arc, Mutex, RwLock};
 
 use crate::{KvStoreError, KvsEngine, Result};
 
@@ -40,12 +41,13 @@ struct RemoveCommand {
 /// store.remove("k".to_owned()).expect("remove error");
 /// assert_eq!(None, store.get("k".to_owned()).unwrap());
 /// ```
+#[derive(Clone)]
 pub struct KvStore {
-    writer: BufWriter<File>,
-    meta_writer: BufWriter<File>,
-    reader: BufReader<File>,
-    entrypoints: HashMap<String, (u64, u64)>,
-    meta: KvMeta,
+    writer: Arc<Mutex<BufWriter<File>>>,
+    meta_writer: Arc<Mutex<BufWriter<File>>>,
+    reader: Arc<RwLock<BufReader<File>>>,
+    entrypoints: Arc<RwLock<HashMap<String, (u64, u64)>>>,
+    meta: Arc<RwLock<KvMeta>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -133,25 +135,35 @@ impl KvStore {
                 .append(true)
                 .open(&db_path)?;
             let store = KvStore {
-                writer: BufWriter::new(db_file),
-                meta_writer: BufWriter::new(OpenOptions::new().write(true).open(&meta_path)?),
-                reader: BufReader::new(File::open(&db_path)?),
-                entrypoints: build_entrypoints(&db_path)?,
-                meta: meta,
+                writer: Arc::new(Mutex::new(BufWriter::new(db_file))),
+                meta_writer: Arc::new(Mutex::new(BufWriter::new(
+                    OpenOptions::new().write(true).open(&meta_path)?,
+                ))),
+                reader: Arc::new(RwLock::new(BufReader::new(File::open(&db_path)?))),
+                entrypoints: Arc::new(RwLock::new(build_entrypoints(&db_path)?)),
+                meta: Arc::new(RwLock::new(meta)),
             };
             return Ok(store);
         }
         Err(KvStoreError::PathInvalid)
     }
 
-    fn compact(&mut self) -> Result<()> {
+    fn check_compact(&self) -> Result<()> {
+        let mut meta = self.meta.write().unwrap();
+
+        if meta.uncompact_size < COMPACTION_POINT {
+            return Ok(());
+        }
+
         let mut vals = vec![];
-        for pos_len_pair in self.entrypoints.values() {
+        let mut entrypoints = self.entrypoints.write().unwrap();
+        for pos_len_pair in entrypoints.values() {
             vals.push(pos_len_pair.clone());
         }
-        let new_version = self.meta.version + 1;
-        let old_log_path = get_db_path(&self.meta.db_dir, self.meta.version);
-        let new_log_path = get_db_path(&self.meta.db_dir, new_version);
+
+        let new_version = meta.version + 1;
+        let old_log_path = get_db_path(&meta.db_dir, meta.version);
+        let new_log_path = get_db_path(&meta.db_dir, new_version);
         let new_log = OpenOptions::new()
             .create(true)
             .append(true)
@@ -178,17 +190,21 @@ impl KvStore {
         }
 
         // update meta
-        self.meta.version = new_version;
-        self.meta.uncompact_size = 0;
-        self.meta_writer.seek(SeekFrom::Start(0))?;
-        self.meta_writer
-            .write_all(&serde_json::to_string(&self.meta)?.into_bytes())?;
-        self.meta_writer.flush()?;
+        meta.version = new_version;
+        meta.uncompact_size = 0;
+
+        let mut meta_writer = self.meta_writer.lock().unwrap();
+        meta_writer.seek(SeekFrom::Start(0))?;
+        meta_writer.write_all(&serde_json::to_string(&*meta)?.into_bytes())?;
+        meta_writer.flush()?;
 
         // update cur instance
-        self.writer = new_writer;
-        self.reader = BufReader::new(File::open(&new_log_path)?);
-        self.entrypoints = new_entrypoints;
+        let mut writer = self.writer.lock().unwrap();
+        *writer = new_writer;
+
+        let mut reader = self.reader.write().unwrap();
+        *reader = BufReader::new(File::open(&new_log_path)?);
+        *entrypoints = new_entrypoints;
 
         // delete old log
         fs::remove_file(&old_log_path)?;
@@ -196,10 +212,11 @@ impl KvStore {
         Ok(())
     }
 
-    fn read_cmd(&mut self, pos: u64, len: u64) -> Result<Commands> {
-        self.reader.seek(SeekFrom::Start(pos))?;
+    fn read_cmd(&self, pos: u64, len: u64) -> Result<Commands> {
+        let mut reader = self.reader.write().unwrap();
+        reader.seek(SeekFrom::Start(pos))?;
         let mut buf = vec![0; len as usize];
-        self.reader.read_exact(&mut buf)?;
+        reader.read_exact(&mut buf)?;
         let cmd = serde_json::from_slice(&buf)?;
         Ok(cmd)
     }
@@ -207,31 +224,36 @@ impl KvStore {
 
 impl KvsEngine for KvStore {
     /// Set a k-v pair
-    fn set(&mut self, key: String, value: String) -> Result<()> {
+    fn set(&self, key: String, value: String) -> Result<()> {
         let cmd = Commands::Set(SetCommand {
             key: key.clone(),
             value,
         });
-        let pos = self.writer.seek(SeekFrom::End(0))?;
-        self.writer
-            .write_all(&serde_json::to_string(&cmd)?.into_bytes())?;
-        self.writer.flush()?;
-        let next_pos = self.writer.stream_position()?;
-        let pos_len_pair = (pos, next_pos - pos);
-        self.entrypoints.insert(key.clone(), pos_len_pair);
 
-        self.meta.uncompact_size += next_pos - pos;
-        if self.meta.uncompact_size > COMPACTION_POINT {
-            self.compact()?;
+        {
+            let mut writer = self.writer.lock().unwrap();
+            let pos = writer.seek(SeekFrom::End(0))?;
+            writer.write_all(&serde_json::to_string(&cmd)?.into_bytes())?;
+            writer.flush()?;
+            let next_pos = writer.stream_position()?;
+
+            let pos_len_pair = (pos, next_pos - pos);
+
+            let mut entrypoints = self.entrypoints.write().unwrap();
+            entrypoints.insert(key.clone(), pos_len_pair);
+
+            let mut meta = self.meta.write().unwrap();
+            meta.uncompact_size += next_pos - pos;
         }
-
+        self.check_compact()?;
         Ok(())
     }
 
     /// Get value of key
     /// Returns None if key is not exists
-    fn get(&mut self, key: String) -> Result<Option<String>> {
-        let entry = self.entrypoints.get(&key);
+    fn get(&self, key: String) -> Result<Option<String>> {
+        let entrypoints = self.entrypoints.read().unwrap();
+        let entry = entrypoints.get(&key);
         match entry {
             Some(pos_len_pair) => {
                 let (pos, len) = *pos_len_pair;
@@ -245,14 +267,15 @@ impl KvsEngine for KvStore {
     }
 
     /// Remove a key
-    fn remove(&mut self, key: String) -> Result<()> {
-        match self.entrypoints.get(&key) {
+    fn remove(&self, key: String) -> Result<()> {
+        let mut writer = self.writer.lock().unwrap();
+        let mut entrypoints = self.entrypoints.write().unwrap();
+        match entrypoints.get(&key) {
             Some(_) => {
                 let cmd = Commands::Remove(RemoveCommand { key: key.clone() });
-                self.writer
-                    .write_all(&serde_json::to_string(&cmd)?.into_bytes())?;
-                self.writer.flush()?;
-                self.entrypoints.remove(&key);
+                writer.write_all(&serde_json::to_string(&cmd)?.into_bytes())?;
+                writer.flush()?;
+                entrypoints.remove(&key);
                 Ok(())
             }
             None => Err(KvStoreError::KeyNotFound),

@@ -3,6 +3,7 @@ use crate::KvsEngine;
 use sled::Db;
 use std::path::Path;
 
+#[derive(Clone)]
 pub struct SledKvsEngine {
     tree: Db,
 }
@@ -16,12 +17,12 @@ impl SledKvsEngine {
 }
 
 impl KvsEngine for SledKvsEngine {
-    fn set(&mut self, key: String, value: String) -> Result<()> {
+    fn set(&self, key: String, value: String) -> Result<()> {
         self.tree.set(key, value.as_bytes())?;
         self.tree.flush()?;
         Ok(())
     }
-    fn get(&mut self, key: String) -> Result<Option<String>> {
+    fn get(&self, key: String) -> Result<Option<String>> {
         let res = self.tree.get(key)?;
         match res {
             Some(iv) => {
@@ -31,7 +32,7 @@ impl KvsEngine for SledKvsEngine {
             None => Ok(None),
         }
     }
-    fn remove(&mut self, key: String) -> Result<()> {
+    fn remove(&self, key: String) -> Result<()> {
         let res = self.tree.del(key)?;
         self.tree.flush()?;
         match res {
