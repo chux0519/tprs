@@ -5,11 +5,11 @@ extern crate log;
 extern crate env_logger;
 use std::env;
 use std::fs;
-use std::net::{SocketAddr, TcpListener};
+use std::net::SocketAddr;
 use structopt::StructOpt;
 
 extern crate kvs;
-use kvs::network::serve;
+use kvs::network::KvsServer;
 use kvs::{KvStore, KvStoreError, Result, SledKvsEngine};
 
 #[derive(StructOpt, Debug)]
@@ -53,14 +53,12 @@ fn main() -> Result<()> {
 
     if engine == Engine::kvs {
         let store = KvStore::open(&env::current_dir()?)?;
-        let listener = TcpListener::bind(opt.addr)?;
-
-        serve(listener, store)?;
+        let mut server = KvsServer::new(store);
+        server.listen(opt.addr)?;
     } else if engine == Engine::sled {
         let store = SledKvsEngine::open(&env::current_dir()?)?;
-        let listener = TcpListener::bind(opt.addr)?;
-
-        serve(listener, store)?;
+        let mut server = KvsServer::new(store);
+        server.listen(opt.addr)?;
     }
     Ok(())
 }
