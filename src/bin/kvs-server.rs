@@ -11,6 +11,7 @@ use structopt::StructOpt;
 extern crate kvs;
 use kvs::network::KvsServer;
 use kvs::{KvStore, KvStoreError, Result, SledKvsEngine};
+use kvs::thread_pool::{ThreadPool, NaiveThreadPool};
 
 #[derive(StructOpt, Debug)]
 struct Opts {
@@ -53,11 +54,13 @@ fn main() -> Result<()> {
 
     if engine == Engine::kvs {
         let store = KvStore::open(&env::current_dir()?)?;
-        let mut server = KvsServer::new(store);
+        let pool = NaiveThreadPool::new(4)?;
+        let mut server = KvsServer::new(store, pool);
         server.listen(opt.addr)?;
     } else if engine == Engine::sled {
         let store = SledKvsEngine::open(&env::current_dir()?)?;
-        let mut server = KvsServer::new(store);
+        let pool = NaiveThreadPool::new(4)?;
+        let mut server = KvsServer::new(store, pool);
         server.listen(opt.addr)?;
     }
     Ok(())
