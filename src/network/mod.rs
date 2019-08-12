@@ -1,8 +1,14 @@
-use crate::error::{KvStoreError, Result};
+use crate::error::Result;
 use crate::KvsEngine;
 use serde::{Deserialize, Serialize};
-use std::io::{self, Read, Write};
-use std::net::{Shutdown, SocketAddr, TcpListener, TcpStream};
+use std::io::{Read, Write};
+use std::net::{Shutdown, TcpStream};
+
+mod client;
+mod server;
+
+pub use client::KvsClient;
+pub use server::KvsServer;
 
 pub struct Session<'a, E: KvsEngine> {
     store: &'a mut E,
@@ -125,113 +131,5 @@ impl<'a, E: KvsEngine> Session<'a, E> {
 
     pub fn should_quit(&self) -> bool {
         self.state == SessionState::Done
-    }
-}
-
-pub struct KvsServer<E: KvsEngine> {
-    store: E,
-}
-
-impl<E: KvsEngine> KvsServer<E> {
-    pub fn new(store: E) -> Self {
-        KvsServer { store }
-    }
-    pub fn listen(&mut self, addr: SocketAddr) -> Result<()> {
-        let listener = TcpListener::bind(addr)?;
-        for stream in listener.incoming() {
-            match stream {
-                Ok(stream) => {
-                    handle(stream, &mut self.store)?;
-                }
-                Err(e) => {
-                    return Err(KvStoreError::Io(io::Error::new(
-                        io::ErrorKind::Other,
-                        format!("{}", e),
-                    )));
-                }
-            }
-        }
-        Ok(())
-    }
-}
-
-pub fn handle<E: KvsEngine>(stream: TcpStream, store: &mut E) -> Result<()> {
-    let mut session = Session::new(stream, store);
-    while !session.should_quit() {
-        session.poll()?;
-    }
-    Ok(())
-}
-
-// Client
-
-pub struct KvsClient {
-    buf: Vec<u8>,
-    stream: TcpStream,
-    ready: bool,
-}
-
-impl KvsClient {
-    pub fn new(addr: SocketAddr) -> Result<Self> {
-        let stream = TcpStream::connect(addr)?;
-        Ok(KvsClient {
-            buf: vec![0u8; 1024],
-            stream,
-            ready: false,
-        })
-    }
-
-    pub fn handshake(&mut self) -> Result<()> {
-        if self.ready {
-            return Ok(());
-        }
-
-        let handshake = SessionClientCommand::Handshake;
-        self.cmd(&handshake)?;
-        self.ready = true;
-
-        Ok(())
-    }
-
-    pub fn cmd(&mut self, cmd: &SessionClientCommand) -> Result<SessionServerResp> {
-        self.stream
-            .write_all(&serde_json::to_string(cmd)?.as_bytes())?;
-        let len = self.stream.read(&mut self.buf)?;
-        let resp: SessionServerResp = serde_json::from_slice(&self.buf[..len])?;
-        Ok(resp)
-    }
-
-    pub fn set(&mut self, k: String, v: String) -> Result<()> {
-        let cmd = SessionClientCommand::Set(k, v);
-        match self.cmd(&cmd)? {
-            SessionServerResp::OK => Ok(()),
-            SessionServerResp::ERR(e) => Err(KvStoreError::Rpc(e)),
-            _ => Err(KvStoreError::Rpc("unnkown error".to_owned())),
-        }
-    }
-
-    pub fn get(&mut self, k: String) -> Result<Option<String>> {
-        let cmd = SessionClientCommand::Get(k);
-        let resp = self.cmd(&cmd)?;
-        match resp {
-            SessionServerResp::Value(v) => Ok(Some(v)),
-            SessionServerResp::NotFound => Ok(None),
-            SessionServerResp::ERR(e) => Err(KvStoreError::Rpc(e)),
-            _ => Err(KvStoreError::Rpc("unnkown error".to_owned())),
-        }
-    }
-    pub fn remove(&mut self, k: String) -> Result<()> {
-        let cmd = SessionClientCommand::Remove(k);
-        let resp = self.cmd(&cmd)?;
-        match resp {
-            SessionServerResp::OK => Ok(()),
-            SessionServerResp::ERR(e) => Err(KvStoreError::Rpc(e)),
-            _ => Err(KvStoreError::Rpc("unnkown error".to_owned())),
-        }
-    }
-    pub fn quit(&mut self) -> Result<()> {
-        let cmd = SessionClientCommand::Quit;
-        self.cmd(&cmd)?;
-        Ok(())
     }
 }
