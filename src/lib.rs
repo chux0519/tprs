@@ -5,15 +5,13 @@
 #[macro_use]
 extern crate failure;
 
-mod error;
-mod kvs;
+pub mod error;
+pub mod engine;
 pub mod network;
-mod sled;
 pub mod thread_pool;
 
 pub use crate::error::{KvStoreError, Result};
-pub use crate::kvs::KvStore;
-pub use crate::sled::SledKvsEngine;
+pub use engine::{KvStore, SledKvsEngine};
 
 pub trait KvsEngine: Clone + Send + 'static {
     fn set(&self, key: String, value: String) -> Result<()>;
