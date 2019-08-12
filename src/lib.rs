@@ -5,8 +5,8 @@
 #[macro_use]
 extern crate failure;
 
-pub mod error;
 pub mod engine;
+pub mod error;
 pub mod network;
 pub mod thread_pool;
 

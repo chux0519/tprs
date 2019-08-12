@@ -3,6 +3,7 @@ extern crate clap;
 #[macro_use]
 extern crate log;
 extern crate env_logger;
+use num_cpus;
 use std::env;
 use std::fs;
 use std::net::SocketAddr;
@@ -10,8 +11,8 @@ use structopt::StructOpt;
 
 extern crate kvs;
 use kvs::network::KvsServer;
+use kvs::thread_pool::{NaiveThreadPool, ThreadPool};
 use kvs::{KvStore, KvStoreError, Result, SledKvsEngine};
-use kvs::thread_pool::{ThreadPool, NaiveThreadPool};
 
 #[derive(StructOpt, Debug)]
 struct Opts {
@@ -52,14 +53,15 @@ fn main() -> Result<()> {
     );
     error!("Configuration: --addr {} --engine {}", opt.addr, engine);
 
+    let cpus = num_cpus::get() as u32;
     if engine == Engine::kvs {
         let store = KvStore::open(&env::current_dir()?)?;
-        let pool = NaiveThreadPool::new(4)?;
+        let pool = NaiveThreadPool::new(cpus)?;
         let mut server = KvsServer::new(store, pool);
         server.listen(opt.addr)?;
     } else if engine == Engine::sled {
         let store = SledKvsEngine::open(&env::current_dir()?)?;
-        let pool = NaiveThreadPool::new(4)?;
+        let pool = NaiveThreadPool::new(cpus)?;
         let mut server = KvsServer::new(store, pool);
         server.listen(opt.addr)?;
     }
