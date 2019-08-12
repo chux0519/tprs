@@ -6,13 +6,12 @@
 extern crate failure;
 
 mod error;
-mod kvs;
 pub mod network;
-mod sled;
+pub mod engine;
+
 
 pub use crate::error::{KvStoreError, Result};
-pub use crate::kvs::KvStore;
-pub use crate::sled::SledKvsEngine;
+pub use crate::engine::{KvStore, SledKvsEngine};
 
 pub trait KvsEngine {
     fn set(&mut self, key: String, value: String) -> Result<()>;
