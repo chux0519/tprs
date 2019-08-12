@@ -16,7 +16,7 @@ pub enum KvStoreError {
     #[fail(display = "{}", _0)]
     Sled(#[cause] sled::Error),
     #[fail(display = "{}", _0)]
-    Rpc(String)
+    Rpc(String),
 }
 
 impl From<io::Error> for KvStoreError {
