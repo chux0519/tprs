@@ -16,3 +16,8 @@ pub trait ThreadPool {
     where
         F: FnOnce() + Send + 'static;
 }
+
+enum ThreadPoolMessage {
+    RunJob(Box<dyn FnOnce() + Send + 'static>),
+    Shutdown,
+}
