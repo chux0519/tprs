@@ -1,5 +1,6 @@
 use sled;
 use std::io;
+use rayon;
 
 #[derive(Fail, Debug)]
 pub enum KvStoreError {
@@ -17,6 +18,8 @@ pub enum KvStoreError {
     Sled(#[cause] sled::Error),
     #[fail(display = "{}", _0)]
     Rpc(String),
+    #[fail(display = "{}", _0)]
+    Rayon(#[cause] rayon::ThreadPoolBuildError),
 }
 
 impl From<io::Error> for KvStoreError {
@@ -34,6 +37,12 @@ impl From<serde_json::Error> for KvStoreError {
 impl From<sled::Error> for KvStoreError {
     fn from(error: sled::Error) -> Self {
         KvStoreError::Sled(error)
+    }
+}
+
+impl From<rayon::ThreadPoolBuildError> for KvStoreError {
+    fn from(error: rayon::ThreadPoolBuildError) -> Self {
+        KvStoreError::Rayon(error)
     }
 }
 
