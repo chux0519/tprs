@@ -1,6 +1,6 @@
+use rayon;
 use sled;
 use std::io;
-use rayon;
 
 #[derive(Fail, Debug)]
 pub enum KvStoreError {

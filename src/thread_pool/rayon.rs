@@ -5,7 +5,11 @@ pub struct RayonThreadPool(rayon::ThreadPool);
 
 impl ThreadPool for RayonThreadPool {
     fn new(threads: u32) -> Result<Self> {
-        Ok(RayonThreadPool(rayon::ThreadPoolBuilder::new().num_threads(threads as usize).build()?))
+        Ok(RayonThreadPool(
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(threads as usize)
+                .build()?,
+        ))
     }
     fn spawn<F>(&self, job: F)
     where

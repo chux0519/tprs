@@ -32,5 +32,5 @@ walkdir = "2.2.7"
 panic-control = "0.1.4"
 
 [[bench]]
-name = "read_write_bench"
+name = "server_bench"
 harness = false
