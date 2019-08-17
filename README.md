@@ -15,6 +15,14 @@ structopt version
 
 > git checkout project-2
 
+## project - 3
+
+> git checkout project-3
+
+## project - 4
+
+> git checkout project-4
+
 
 ## requirements
 
