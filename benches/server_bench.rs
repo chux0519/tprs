@@ -2,16 +2,13 @@
 extern crate criterion;
 
 use criterion::{BatchSize, Criterion};
-use crossbeam::channel::{unbounded, Receiver, Sender};
+use crossbeam::channel::unbounded;
 use kvs::network::{KvsClient, KvsServer};
 use kvs::thread_pool::{SharedQueueThreadPool, ThreadPool};
-use kvs::{KvStore, KvsEngine, SledKvsEngine};
-use rand::prelude::*;
-use serde_json;
-use std::env;
+use kvs::KvStore;
 use std::fs;
 use std::sync::atomic::{AtomicI32, Ordering};
-use std::sync::{Arc, Barrier, Mutex};
+use std::sync::Arc;
 use std::thread;
 use tempfile::TempDir;
 
@@ -49,15 +46,12 @@ fn write_queued_kvstore(c: &mut Criterion) {
                         .rx(c_rx.clone())
                         .tx(c_tx.clone());
                     thread::spawn(move || {
-                        dbg!("spawn");
                         server.listen("127.0.0.1:4001".parse().unwrap()).unwrap();
-                        dbg!("spawn done");
                     });
                     let client_pool = SharedQueueThreadPool::new(num).unwrap();
                     client_pool
                 },
                 |client_pool| {
-                    dbg!("iter start");
                     let done_jobs = Arc::new(AtomicI32::new(0));
                     for (k, v) in &kvs {
                         let _k = k.clone();
@@ -72,13 +66,13 @@ fn write_queued_kvstore(c: &mut Criterion) {
                             _done_jobs.fetch_add(1, Ordering::Relaxed);
                         })
                     }
+                    // all jobs done
                     loop {
                         if done_jobs.load(Ordering::Relaxed) == 1000 {
                             break;
                         }
                     }
 
-                    dbg!("now assert");
                     let mut check_client =
                         KvsClient::new("127.0.0.1:4001".parse().unwrap()).unwrap();
                     check_client.handshake().unwrap();
@@ -89,13 +83,12 @@ fn write_queued_kvstore(c: &mut Criterion) {
                     }
                     check_client.quit().unwrap();
 
-                    // to quit server
+                    // send shutdown to server
                     s_tx.send(()).unwrap();
-                    dbg!("sent");
-
-                    // wait for server shutdown
+                    // trigger quit
+                    KvsClient::new("127.0.0.1:4001".parse().unwrap()).unwrap();
+                    // wait for shutdown ack
                     s_rx.recv().unwrap();
-                    dbg!("next");
                 },
                 BatchSize::SmallInput,
             )
