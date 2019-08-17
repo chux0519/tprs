@@ -495,7 +495,7 @@ fn read_with_different_kvengine(c: &mut Criterion) {
     let inputs = &[1, 2, 4, 8];
 
     c.bench(
-        "read_with_different_threadpool",
+        "read_with_different_kvengine",
         ParameterizedBenchmark::new(
             "KvStore",
             move |b, &&num| {
@@ -645,6 +645,6 @@ fn read_with_different_kvengine(c: &mut Criterion) {
 criterion_group! {
     name = benches;
     config = Criterion::default().sample_size(2);
-    targets = read_with_different_threadpool,read_with_different_kvengine,write_with_different_kvengine,write_with_different_threadpool
+    targets = write_with_different_threadpool,write_with_different_kvengine,read_with_different_threadpool,read_with_different_kvengine
 }
 criterion_main!(benches);
