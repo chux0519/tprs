@@ -9,8 +9,8 @@ pub mod engine;
 mod error;
 pub mod network;
 
-pub use crate::error::{KvStoreError, Result};
 pub use crate::engine::{KvStore, SledKvsEngine};
+pub use crate::error::{KvStoreError, Result};
 
 pub trait KvsEngine {
     fn set(&mut self, key: String, value: String) -> Result<()>;
