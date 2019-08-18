@@ -21,11 +21,11 @@ structopt version
 
 ### goals
 
-[x] Create a client-server application
-[x] Write a custom protocol with std networking APIs
-[x] learn some logging for server
-[x] Implement pluggable backends with traits
-[x] Benchmark the hand-written backend against sled
+- [x] Create a client-server application
+- [x] Write a custom protocol with std networking APIs
+- [x] learn some logging for server
+- [x] Implement pluggable backends with traits
+- [x] Benchmark the hand-written backend against sled
 
 ### parts
 
@@ -37,11 +37,11 @@ all parts are done
 
 ### goals
 
-[x] Write a simple thread pool
-[x] Use channels for cross-thread communication
-[x] Share data structures with locks
-[x] Perform read operations without locks (For now, read operations will call RwLock::read)
-[x] Benchmark single-threaded vs multithreaded
+- [x] Write a simple thread pool
+- [x] Use channels for cross-thread communication
+- [x] Share data structures with locks
+- [x] Perform read operations without locks (For now, read operations will call RwLock::read)
+- [x] Benchmark single-threaded vs multithreaded
 
 ### parts
 
