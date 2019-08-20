@@ -50,6 +50,9 @@ fn write_with_different_threadpool(c: &mut Criterion) {
                         thread::spawn(move || {
                             server.listen("127.0.0.1:4001".parse().unwrap()).unwrap();
                         });
+
+                        // wait for start
+                        s_rx.recv().unwrap();
                         let client_pool = SharedQueueThreadPool::new(num).unwrap();
                         client_pool
                     },
@@ -89,7 +92,7 @@ fn write_with_different_threadpool(c: &mut Criterion) {
                         s_tx.send(()).unwrap();
                         // trigger quit
                         KvsClient::new("127.0.0.1:4001".parse().unwrap()).unwrap();
-                        // wait for shutdown ack
+
                         s_rx.recv().unwrap();
                     },
                     BatchSize::SmallInput,
@@ -128,6 +131,10 @@ fn write_with_different_threadpool(c: &mut Criterion) {
                     thread::spawn(move || {
                         server.listen("127.0.0.1:4002".parse().unwrap()).unwrap();
                     });
+
+                    // wait for start
+                    s_rx.recv().unwrap();
+
                     let client_pool = RayonThreadPool::new(num).unwrap();
                     client_pool
                 },
@@ -167,7 +174,7 @@ fn write_with_different_threadpool(c: &mut Criterion) {
                     s_tx.send(()).unwrap();
                     // trigger quit
                     KvsClient::new("127.0.0.1:4002".parse().unwrap()).unwrap();
-                    // wait for shutdown ack
+
                     s_rx.recv().unwrap();
                 },
                 BatchSize::SmallInput,
@@ -214,6 +221,7 @@ fn write_with_different_kvengine(c: &mut Criterion) {
                         thread::spawn(move || {
                             server.listen("127.0.0.1:4003".parse().unwrap()).unwrap();
                         });
+                        s_rx.recv().unwrap();
                         let client_pool = SharedQueueThreadPool::new(num).unwrap();
                         client_pool
                     },
@@ -292,6 +300,7 @@ fn write_with_different_kvengine(c: &mut Criterion) {
                     thread::spawn(move || {
                         server.listen("127.0.0.1:4004".parse().unwrap()).unwrap();
                     });
+                    s_rx.recv().unwrap();
                     let client_pool = SharedQueueThreadPool::new(num).unwrap();
                     client_pool
                 },
@@ -371,6 +380,7 @@ fn read_with_different_threadpool(c: &mut Criterion) {
                             server.listen("127.0.0.1:4005".parse().unwrap()).unwrap();
                         });
 
+                        s_rx.recv().unwrap();
                         let mut _client =
                             KvsClient::new("127.0.0.1:4005".parse().unwrap()).unwrap();
                         _client.handshake().unwrap();
@@ -411,7 +421,6 @@ fn read_with_different_threadpool(c: &mut Criterion) {
                         s_tx.send(()).unwrap();
                         // trigger quit
                         KvsClient::new("127.0.0.1:4005".parse().unwrap()).unwrap();
-                        // wait for shutdown ack
                         s_rx.recv().unwrap();
                     },
                     BatchSize::SmallInput,
@@ -443,6 +452,7 @@ fn read_with_different_threadpool(c: &mut Criterion) {
                         server.listen("127.0.0.1:4006".parse().unwrap()).unwrap();
                     });
 
+                    s_rx.recv().unwrap();
                     let mut _client = KvsClient::new("127.0.0.1:4006".parse().unwrap()).unwrap();
                     _client.handshake().unwrap();
                     for i in 0..1000 {
@@ -482,7 +492,6 @@ fn read_with_different_threadpool(c: &mut Criterion) {
                     s_tx.send(()).unwrap();
                     // trigger quit
                     KvsClient::new("127.0.0.1:4006".parse().unwrap()).unwrap();
-                    // wait for shutdown ack
                     s_rx.recv().unwrap();
                 },
                 BatchSize::SmallInput,
@@ -521,6 +530,7 @@ fn read_with_different_kvengine(c: &mut Criterion) {
                         thread::spawn(move || {
                             server.listen("127.0.0.1:4007".parse().unwrap()).unwrap();
                         });
+                        s_rx.recv().unwrap();
 
                         let mut _client =
                             KvsClient::new("127.0.0.1:4007".parse().unwrap()).unwrap();
@@ -593,6 +603,7 @@ fn read_with_different_kvengine(c: &mut Criterion) {
                     thread::spawn(move || {
                         server.listen("127.0.0.1:4008".parse().unwrap()).unwrap();
                     });
+                    s_rx.recv().unwrap();
 
                     let mut _client = KvsClient::new("127.0.0.1:4008".parse().unwrap()).unwrap();
                     _client.handshake().unwrap();
@@ -644,7 +655,7 @@ fn read_with_different_kvengine(c: &mut Criterion) {
 
 criterion_group! {
     name = benches;
-    config = Criterion::default().sample_size(2);
+    config = Criterion::default().sample_size(10);
     targets = write_with_different_threadpool,write_with_different_kvengine,read_with_different_threadpool,read_with_different_kvengine
 }
 criterion_main!(benches);

@@ -31,6 +31,10 @@ impl<E: KvsEngine, T: ThreadPool> KvsServer<E, T> {
     }
     pub fn listen(&mut self, addr: SocketAddr) -> Result<()> {
         let listener = TcpListener::bind(addr)?;
+        if let Some(t) = &self.tx {
+            // start ack, avoid sock not connected
+            t.send(()).expect("failed to send start ack");
+        }
 
         for stream in listener.incoming() {
             // no receiver costs nothing
@@ -55,10 +59,9 @@ impl<E: KvsEngine, T: ThreadPool> KvsServer<E, T> {
                 }
             }
         }
-
         if let Some(t) = &self.tx {
-            // shutdown ack, bench case can now safely go to next iter
-            t.send(()).expect("failed to send shutdown back");
+            // shutdown ack, avoid address in use
+            t.send(()).expect("failed to send shutdown ack");
         }
         Ok(())
     }
